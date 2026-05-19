@@ -16,7 +16,7 @@ feedparser.USER_AGENT = (
 )
 
 RESEND_API_KEY  = os.environ["RESEND_API_KEY"]
-RECIPIENT_EMAIL = os.environ["RECIPIENT_EMAIL"]
+RECIPIENT_EMAIL = "eblejer08@gmail.com"
 SENDER_EMAIL    = "onboarding@resend.dev"
 
 FEEDS = {

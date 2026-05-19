@@ -1,6 +1,7 @@
 import feedparser
 import urllib.request
 import urllib.parse
+import urllib.error
 import json
 import io
 import os
@@ -14,9 +15,9 @@ feedparser.USER_AGENT = (
     "Chrome/124.0 Safari/537.36 NewsDigest/1.0"
 )
 
-RESEND_API_KEY    = os.environ["RESEND_API_KEY"]
-RECIPIENT_EMAIL   = os.environ["RECIPIENT_EMAIL"]
-SENDER_EMAIL      = "digest@resend.dev"  # free Resend sandbox sender
+RESEND_API_KEY  = os.environ["RESEND_API_KEY"]
+RECIPIENT_EMAIL = os.environ["RECIPIENT_EMAIL"]
+SENDER_EMAIL    = "onboarding@resend.dev"
 
 FEEDS = {
     "Economics": [
@@ -75,7 +76,6 @@ def fetch_feed(url):
 def fetch_top_stories(feed_urls, n):
     entries = []
     seen = set()
-
     for url in feed_urls:
         try:
             feed = fetch_feed(url)
@@ -84,14 +84,12 @@ def fetch_top_stories(feed_urls, n):
                 if not title or title.lower() in seen:
                     continue
                 seen.add(title.lower())
-
                 summary = entry.get("summary", entry.get("description", ""))
                 for tag in ["<p>", "</p>", "<b>", "</b>", "<br>", "<br/>"]:
                     summary = summary.replace(tag, " ")
                 summary = html_lib.unescape(summary).strip()
                 if len(summary) > 220:
                     summary = summary[:217].rsplit(" ", 1)[0] + "…"
-
                 entries.append({
                     "title":   html_lib.unescape(title),
                     "summary": summary,
@@ -101,7 +99,6 @@ def fetch_top_stories(feed_urls, n):
         except Exception as e:
             print(f"  [warn] {url}: {e}")
         time.sleep(0.3)
-
     return entries[:n]
 
 
@@ -179,6 +176,10 @@ def send_via_resend(html_body):
         "html":    html_body,
     }).encode()
 
+    print(f"Sending to: {RECIPIENT_EMAIL}")
+    print(f"From: {SENDER_EMAIL}")
+    print(f"API key starts with: {RESEND_API_KEY[:8]}...")
+
     req = urllib.request.Request(
         "https://api.resend.com/emails",
         data=payload,
@@ -189,9 +190,15 @@ def send_via_resend(html_body):
         method="POST",
     )
 
-    with urllib.request.urlopen(req) as resp:
-        result = json.loads(resp.read())
-    print(f"✅ Sent! ID: {result.get('id')} → {RECIPIENT_EMAIL}")
+    try:
+        with urllib.request.urlopen(req) as resp:
+            result = json.loads(resp.read())
+        print(f"✅ Sent! ID: {result.get('id')} → {RECIPIENT_EMAIL}")
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode()
+        print(f"❌ HTTP {e.code}: {e.reason}")
+        print(f"❌ Response body: {error_body}")
+        raise
 
 
 def main():
